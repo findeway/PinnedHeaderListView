@@ -2,6 +2,7 @@ package za.co.immedia.pinnedheaderlistview;
 
 import android.content.Context;
 import android.graphics.Canvas;
+import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
@@ -33,6 +34,7 @@ public class PinnedHeaderListView extends ListView implements OnScrollListener {
     private int mCurrentSection = 0;
     private int mWidthMode;
     private int mHeightMode;
+    private float mFixedOffset = 0.0f;
 
     public PinnedHeaderListView(Context context) {
         super(context);
@@ -65,44 +67,79 @@ public class PinnedHeaderListView extends ListView implements OnScrollListener {
         if (mOnScrollListener != null) {
             mOnScrollListener.onScroll(view, firstVisibleItem, visibleItemCount, totalItemCount);
         }
-
-        if (mAdapter == null || mAdapter.getCount() == 0 || !mShouldPin || (firstVisibleItem < getHeaderViewsCount())) {
+        if (mAdapter == null || mAdapter.getCount() == 0 || !mShouldPin || firstVisibleItem < getHeaderViewsCount() ) {
             mCurrentHeader = null;
-            mHeaderOffset = 0.0f;
+            mHeaderOffset = getFixedHeaderOffset();
             for (int i = firstVisibleItem; i < firstVisibleItem + visibleItemCount; i++) {
                 View header = getChildAt(i);
                 if (header != null) {
                     header.setVisibility(VISIBLE);
                 }
             }
-            return;
-        }
-
-        firstVisibleItem -= getHeaderViewsCount();
-
-        int section = mAdapter.getSectionForPosition(firstVisibleItem);
-        int viewType = mAdapter.getSectionHeaderViewType(section);
-        mCurrentHeader = getSectionHeaderView(section, mCurrentHeaderViewType != viewType ? null : mCurrentHeader);
-        ensurePinnedHeaderLayout(mCurrentHeader);
-        mCurrentHeaderViewType = viewType;
-
-        mHeaderOffset = 0.0f;
-
-        for (int i = firstVisibleItem; i < firstVisibleItem + visibleItemCount; i++) {
-            if (mAdapter.isSectionHeader(i)) {
-                View header = getChildAt(i - firstVisibleItem);
-                float headerTop = header.getTop();
-                float pinnedHeaderHeight = mCurrentHeader.getMeasuredHeight();
-                header.setVisibility(VISIBLE);
-                if (pinnedHeaderHeight >= headerTop && headerTop > 0) {
-                    mHeaderOffset = headerTop - header.getHeight();
-                } else if (headerTop <= 0) {
-                    header.setVisibility(INVISIBLE);
-                }
+            if(mAdapter == null || mAdapter.getCount() == 0 || !mShouldPin) {
+                return;
             }
         }
 
-        invalidate();
+        /**
+         * change the show strategory of the first section
+         * try to pin the first section when the scroll distance reach mFixedHeaderOffset
+         */
+        if(firstVisibleItem < getHeaderViewsCount()){
+            mHeaderOffset = getFixedHeaderOffset();
+            mCurrentHeader = null;
+            int section = mAdapter.getSectionForPosition(0);
+            int viewType = mAdapter.getSectionHeaderViewType(section);
+            View currentHeader = getSectionHeaderView(section, mCurrentHeaderViewType != viewType ? null : mCurrentHeader);
+            /**
+             * only the attachedFirstItem can get the correct top position
+             */
+            View attachedFirstItem = getChildAt(getHeaderViewsCount());
+            if(currentHeader != null) {
+                int[] location = new int[2];
+                attachedFirstItem.getLocationOnScreen(location);
+                if (location[1] <= getFixedHeaderOffset()) {
+                    mCurrentHeader = currentHeader;
+                    ensurePinnedHeaderLayout(mCurrentHeader);
+                    mCurrentHeaderViewType = viewType;
+                }
+            }
+        }else{
+            firstVisibleItem -= getHeaderViewsCount();
+            View topHeader = getChildAt(0);
+            /**
+             * get the real firstVisibleItem considering the fixed header offset
+             */
+            int realFirstVisibleItem = firstVisibleItem;
+            if(topHeader != null && topHeader.getBottom() <= getFixedHeaderOffset() && firstVisibleItem >= getHeaderViewsCount()){
+                realFirstVisibleItem += 1;
+            }
+            int section = mAdapter.getSectionForPosition(realFirstVisibleItem);
+            int viewType = mAdapter.getSectionHeaderViewType(section);
+            mCurrentHeader = getSectionHeaderView(section, mCurrentHeaderViewType != viewType ? null : mCurrentHeader);
+            ensurePinnedHeaderLayout(mCurrentHeader);
+            mCurrentHeaderViewType = viewType;
+            mHeaderOffset = getFixedHeaderOffset();
+
+            for (int i = firstVisibleItem; i < firstVisibleItem + visibleItemCount; i++) {
+                if (mAdapter.isSectionHeader(i)) {
+                    View header = getChildAt(i - firstVisibleItem);
+                    float headerTop = header.getTop();
+                    float pinnedHeaderHeight = mCurrentHeader.getMeasuredHeight();
+                    header.setVisibility(VISIBLE);
+                    /**
+                     * change the calculation of the header offset based on mFixedHeaderOffset
+                     */
+                    if (pinnedHeaderHeight + getFixedHeaderOffset() >= headerTop && headerTop >= getFixedHeaderOffset()) {
+                        mHeaderOffset = headerTop - header.getHeight();
+                    } else if (headerTop < 0) {
+                        header.setVisibility(INVISIBLE);
+                    }
+                }
+            }
+
+            invalidate();
+        }
     }
 
     @Override
@@ -196,5 +233,17 @@ public class PinnedHeaderListView extends ListView implements OnScrollListener {
 
         public abstract void onSectionClick(AdapterView<?> adapterView, View view, int section, long id);
 
+    }
+
+    /**
+     * set FixedHeaderOffset(default value is zero)
+     * @param offset
+     */
+    public void setFixedHeaderOffset(float offset){
+        mFixedOffset = offset;
+    }
+
+    public float getFixedHeaderOffset(){
+        return mFixedOffset;
     }
 }
