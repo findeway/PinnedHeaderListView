@@ -2,12 +2,15 @@ package za.co.immedia.pinnedheaderlistview;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Rect;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.*;
+import android.widget.AbsListView;
 import android.widget.AbsListView.OnScrollListener;
+import android.widget.AdapterView;
+import android.widget.HeaderViewListAdapter;
+import android.widget.ListAdapter;
+import android.widget.ListView;
 
 public class PinnedHeaderListView extends ListView implements OnScrollListener {
 
@@ -94,7 +97,7 @@ public class PinnedHeaderListView extends ListView implements OnScrollListener {
             /**
              * only the attachedFirstItem can get the correct top position
              */
-            View attachedFirstItem = getChildAt(getHeaderViewsCount());
+            View attachedFirstItem = getChildAt(getHeaderViewsCount() - firstVisibleItem);
             if(currentHeader != null) {
                 int[] location = new int[2];
                 attachedFirstItem.getLocationOnScreen(location);
